@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator</title>
+    <link rel="stylesheet" href="./style.css">
+    <script src="./script.js" defer></script>
+</head>
+<body>
+    <div class="content">
+        <div class="calculator">
+            <div class="calc-head">
+                <h1 class="calc-text">Рассчитать стоимость товара</h1>
+            </div>
+            <div class="calc-body">
+                <div class="calc-input">
+                    <div id="quantity-outter">
+                        <h3 class="calc-text">Количество: </h3>
+                        <input type="text" name="quantity" id="quantity-input" class="underline-to-border calc-text">
+                    </div>
+                    <div id="product-type-outter">
+                        <h3 class="calc-text">Товар: </h3>
+                        <fieldset id="calc-radio-group">
+                        </fieldset>
+                    </div>
+                    <div id="subproducts-outter">
+                        <div>
+                            <h3 class="calc-text">Сорт:</h3>
+                            <div id="subproducts">
+                                <select class="calc-text" name="subproducts-select" id="subproducts-select" disabled>
+                                    <option value="">Select subproduct</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="calc-text">Доп. Услуга: </h3>
+                            <div id="subproduct-property">
+                                <div id="product-property-div">
+                                    <input type="checkbox" name="product-property" id="product-property" value="" disabled>
+                                    <label for="product-property" id="product-property-label" style="opacity: 0;">No Property</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="calc-button-outter">
+                    <button type="button" id="calc-button" class="calc-text">Рассчитать</button>
+                </div>
+                <div class="calc-result">
+                    <h2 class="calc-text">Цена: </h2>
+                    <span id="result" class="calc-text"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
