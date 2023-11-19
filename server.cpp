@@ -1,107 +1,115 @@
-#include <fstream>
-#include <string>
-#include <iostream>
-#include <windows.h>
+#include <iostream>  
+#include <winsock2.h> 
+#include <windows.h> 
+#include <string> 
 #include <vector>
+
+#define SRV_PORT 1234
+#define BUF_SIZE 1024
 
 using namespace std;
 
-const char* conn_fn = "C://Users/aleks/source/repos/Nikita_CW_server/Nikita_CW_server/conn.txt";
+struct Person {
+	char surname[20];
+	char name[20];
+	char middlename[20];
+	char address[30];
+	char gender[10];
+	char education[20];
+	int bdate;
+};
+
+const string greeting = "It's Server. Hello!";
+vector<Person> persons;
+
+int main() {
+
+	char buff[1024];
+	WSADATA wsa_data;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa_data) < 0) {
+		cout << "[ERROR] WSA initialization failed: " << WSAGetLastError() << endl;
+		WSACleanup();
+		exit(EXIT_FAILURE);
+	}
+	else {
+		cout << "[INFO] WSA was initialized successfully." << endl;
+	}
+
+	SOCKET sListener, sNew;
+	sockaddr_in sin, clntSin;
+
+	sListener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sListener == INVALID_SOCKET) {
+		cout << "[ERROR] Socket initialization failed: " << WSAGetLastError() << endl;
+		WSACleanup();
+		exit(EXIT_FAILURE);
+	}
+	else {
+		cout << "[INFO] Socket was initialized successfully." << endl;
+	}
 
 
-struct Student {
-    char name[25];
-    int marks1;
-    int marks2;
-    int marks3;
-    int marks4;
-} st;
+	sin.sin_family = AF_INET;
+	sin.sin_addr.s_addr = 0;
+	sin.sin_port = htons(SRV_PORT);
 
-int proceedR(Student& B) {
-    if ((B.marks1 == 5) && (B.marks2 == 5) && (B.marks3 == 5) && (B.marks4 == 5)) return 0;
-    if ((B.marks1 > 3) && (B.marks2 > 3) && (B.marks3 > 3) && (B.marks4 > 3)) return 1;
-    return 2;
-}
+	if (bind(sListener, (sockaddr*)&sin, sizeof(sin))) {
+		cout << "[ERROR] Socket binding failed: " << WSAGetLastError() << endl;
+		WSACleanup();
+		exit(EXIT_FAILURE);
+	}
+	else {
+		cout << "[INFO] Socket was binded successfully." << endl;
+	}
 
-int main()
-{
-    ifstream file_input;
-    ifstream user_file_input;
-    ofstream file_output;
-    
-    vector<string> usernames;
-    vector<int> userfiles_prev_sizes;
-    file_input.open(conn_fn);
-    string username_;
-    while(getline(file_input, username_)) {
-        usernames.push_back(username_);
-    }
-    file_input.close();
+	int len;
+	char buf[BUF_SIZE] = { 0 };
+	string msg;
+	listen(sListener, 3);
+	while (true) {
+		len = sizeof(clntSin);
+		sNew = accept(sListener, (sockaddr*)&clntSin, &len);
+		cout << "[INFO] New connection. " << endl;
+		msg = greeting;
+		while (true) {
+			send(sNew, (char*)&msg[0], msg.size(), 0);
+			len = recv(sNew, (char*)buf, BUF_SIZE, 0);
+			if (len == SOCKET_ERROR) {
+				cout << "[ERROR] Data receiving failed: " << WSAGetLastError() << endl;
+				break;
+			}
 
-    for (string usn : usernames) {
-        string fp = "C://Users/aleks/source/repos/Nikita_CW_server/Nikita_CW_server/" + usn + ".bin";
-        user_file_input.open(fp);
-        user_file_input.seekg(0, ios::end);
-        userfiles_prev_sizes.push_back(user_file_input.tellg());
-        user_file_input.close();
-    }
+			Person* y = (Person*)(&buf[0]);
 
-    for (int size_ : userfiles_prev_sizes) {
-        cout << size_ << endl;
-    }
+			cout << "CLIENT: ";
+			cout << (*y).surname << " " << (*y).name << " " << (*y).middlename << " " << (*y).address << " " << (*y).gender << " " << (*y).education << " " << (*y).bdate << endl;
+			Person c_person;
+			strcpy_s(c_person.surname, (*y).surname);
+			strcpy_s(c_person.name, (*y).name);
+			strcpy_s(c_person.middlename, (*y).middlename);
+			strcpy_s(c_person.address, (*y).address);
+			strcpy_s(c_person.gender, (*y).gender);
+			strcpy_s(c_person.education, (*y).education);
+			c_person.bdate = (*y).bdate;
 
-    int prev_size;
+			persons.push_back(c_person);
+		}
 
-    file_input.open(conn_fn, ios::binary);
-    file_input.seekg(0, ios::end);
-    prev_size = file_input.tellg();
-    file_input.close();
+		cout << "[INFO] Client disconnected." << endl;
+		closesocket(sNew);
 
 
-    while (true) {
-        file_input.open(conn_fn);
-        file_input.seekg(0, ios::end);
-        while (prev_size >= file_input.tellg()) {
-            Sleep(5000);
-            file_input.seekg(0, ios::end);
-            cout << "searching for new conn " <<  prev_size << endl;
-            
-            int index = 0;
-            for (string usn : usernames) {
-                cout << index << " " << userfiles_prev_sizes[index] << endl;
-                string fp = "C://Users/aleks/source/repos/Nikita_CW_server/Nikita_CW_server/" + usn + ".bin";
-                user_file_input.open(fp);
-                user_file_input.seekg(0, ios::end);
+		cout << "People with higher education: " << endl;
+		for (const Person person : persons) {
+			
+			if ((string)person.education == "higher") cout << person.surname << " " << person.name << " " << person.middlename << " " << person.address << " " << person.gender << " " << person.education << " " << person.bdate << endl;
+		}
 
-                if (userfiles_prev_sizes[index] >= user_file_input.tellg()) {
-                    user_file_input.close();
-                    cout << "no requests found" << endl;
-                }
-                else {
-                    cout << "new request" << endl;
-                    user_file_input.seekg(userfiles_prev_sizes[index], ios::beg);
-                    user_file_input.read((char*)&st, sizeof(st));
-                    user_file_input.close();
+		cout << endl << "Womans: " << endl;
+		for (const Person person : persons) {
+			if ((string)person.gender == "woman") cout << person.surname << " " << person.name << " " << person.middlename << " " << person.address << " " << person.gender << " " << person.education << " " << person.bdate << endl;
+		}
 
-                    int answer = proceedR(st);
-                    file_output.open(fp, ios::binary | ios::app);
-                    file_output.write((char*)&answer, sizeof(answer));
-                    userfiles_prev_sizes[index] += sizeof(answer) + sizeof(st);
-                    file_output.close();
-                }
-
-                index++;
-            }
-
-        }
-        string username;
-        file_input.seekg(prev_size, ios::beg);
-        getline(file_input, username);
-        usernames.push_back(username);
-        userfiles_prev_sizes.push_back(0);
-        file_input.seekg(0, ios::end);
-        prev_size = file_input.tellg();
-        file_input.close();
-    }
-
+	}
+	return 0;
 }
