@@ -1,105 +1,126 @@
-#include <fstream>
+#include <iostream> 
 #include <string>
-#include <iostream>
-#include <windows.h>
-#include <vector>
+#include <WinSock2.h>
+#include <Windows.h>
+#include <WS2tcpip.h>
+
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#pragma warning(disable: 4996)
+
+#define SRV_HOST "localhost"
+#define SRV_PORT 1234
+#define CLNT_PORT 1235
+#define BUF_SIZE 1024
 
 using namespace std;
 
-const char* conn_fn = "C://Users/aleks/source/repos/Nikita_CW_server/Nikita_CW_server/conn.txt";
+struct Person {
+    char surname[20];
+    char name[20];
+    char middlename[20];
+    char address[30];
+    char gender[10];
+    char education[20];
+    int bdate;
+};
 
-
-struct Student {
-    char name[25];
-    int marks1;
-    int marks2;
-    int marks3;
-    int marks4;
-} st;
-
-int main()
-{
-    ifstream file_input;
-    ofstream file_output;
-
-
-    string username;
-    cout << "Enter username: ";
-    cin >> username;
-
-
-    file_input.open(conn_fn);
-    string username_;
-    bool is_already_exist = false;
-    while (getline(file_input, username_)) {
-        if (username == username_) {
-            is_already_exist = true;
-            break;
-        }
-    }
-    file_input.close();
-
-    cout << "Input student's name: ";
-    cin >> st.name;
-    cout << "Input student's mark1: ";
-    cin >> st.marks1;
-    cout << "Input student's mark2: ";
-    cin >> st.marks2;
-    cout << "Input student's mark3: ";
-    cin >> st.marks3;
-    cout << "Input student's mark4: ";
-    cin >> st.marks4;
-
-
-    string fp = "C://Users/aleks/source/repos/Nikita_CW_server/Nikita_CW_server/" + username + ".bin";
-    if (!is_already_exist) {
-        file_output.open(conn_fn, ios::app);
-        file_output << username << endl;
-        file_output.close();
-    }
-
-    file_output.open(fp, ios::app | ios::binary);
-    file_output.write((char*)&st, sizeof(st));
-    file_output.close();
-
-
-    file_input.open(fp, ios::binary);
-    file_input.seekg(0, ios::end);
-    int prev_size = file_input.tellg();
-    file_input.close();
-
-
-    while (true) {
-        file_input.open(fp, ios::binary);
-        file_input.seekg(0, ios::end);
-        if (prev_size >= file_input.tellg()) {
-            file_input.seekg(0, ios::end);
-            file_input.close();
-            Sleep(1000);
-        }
-        else {
-            file_input.close();
-            break;
-        }
-    }
-    int answer;
-    file_input.open(fp, ios::binary);
-    file_input.seekg(prev_size, ios::beg);
-    file_input.read((char*)&answer, sizeof(answer));
-
-    prev_size = file_input.tellg();
-    file_input.close();
-
-    if (answer == 0) {
-        cout << "Student has increased scholarship." << endl;
-    }
-    else if (answer == 1){
-        cout << "Student has common scholarship." << endl;
-    }
-    else if (answer == 2) {
-        cout << "Student has no scholarship." << endl;
+int main() {
+    
+    char buff[1024];
+    WSADATA wsa_data;
+    if (WSAStartup(MAKEWORD(2, 2), &wsa_data) < 0) {
+        cout << "[ERROR] WSA initialization failed: " << WSAGetLastError() << endl;
+        WSACleanup();
+        exit(EXIT_FAILURE);
     }
     else {
-        cout << "Invalid result" << endl;
+        cout << "[INFO] WSA was initialized successfully." << endl;
     }
+
+    SOCKET s;
+    s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s == INVALID_SOCKET) {
+        cout << "[ERROR] Socket initialization failed: " << WSAGetLastError() << endl;
+        WSACleanup();
+        exit(EXIT_FAILURE);
+    }
+    else {
+        cout << "[INFO] Socket was initialized successfully." << endl;
+    }
+
+    sockaddr_in clntSin, srvSin;
+
+    clntSin.sin_family = AF_INET;
+    clntSin.sin_addr.s_addr = 0;
+    clntSin.sin_port = htons(CLNT_PORT);
+
+    if (bind(s, (sockaddr*)&clntSin, sizeof(clntSin))) {
+        cout << "[ERROR] Socket binding failed: " << WSAGetLastError() << endl;
+        WSACleanup();
+        exit(EXIT_FAILURE);
+    }
+    else {
+        cout << "[INFO] Socket was binded successfully." << endl;
+    }
+
+    hostent* hp;
+    srvSin.sin_family = AF_INET;
+    srvSin.sin_port = htons(SRV_PORT);
+    hp = gethostbyname(SRV_HOST);
+    ((unsigned long*)&srvSin.sin_addr)[0] = ((unsigned long**)hp->h_addr_list)[0][0];
+
+    connect(s, (sockaddr*)&srvSin, sizeof(srvSin));
+
+    int len = 0;
+    char buf[BUF_SIZE] = { 0 };
+    do {
+        len = recv(s, (char*)&buf, BUF_SIZE, 0);
+        if (len == SOCKET_ERROR) {
+            cout << "[ERROR] Receiving data failed: " << WSAGetLastError() << endl;
+            WSACleanup();
+            exit(EXIT_FAILURE);
+        }
+        else {
+            cout << "[INFO] Data was received." << endl;
+        }
+
+        cout << "SERVER MSG: " << buf << endl;
+
+        string surname, name, middlename, address, gender, education;
+        int bdate;
+
+        Person person;
+        
+        cout << "Enter surname: ";
+        cin >> surname;
+        strcpy(person.surname, surname.c_str());
+        cout << "Enter name: ";
+        cin >> name;
+        strcpy(person.name, name.c_str());
+        cout << "Enter middlename: ";
+        cin >> middlename;
+        strcpy(person.middlename, middlename.c_str());
+        cout << "Enter address: ";
+        cin >> address;
+        strcpy(person.address, address.c_str());
+        cout << "Enter gender (man | woman): ";
+        cin >> gender;
+        strcpy(person.gender, gender.c_str());
+        cout << "Enter education (higher | secondary | primary): ";
+        cin >> education;
+        strcpy(person.education, education.c_str());
+        cout << "Enter birthday date: ";
+        cin >> bdate;
+        person.bdate = bdate;
+
+        
+        char* msg = (char*)&person;
+        cout << sizeof(person) << " " << sizeof(Person) << endl;
+        send(s, (char*)&msg[0], sizeof(Person), 0);
+
+    } while (true);
+
+    cout << "Conversation is over" << endl;
+    closesocket(s);
+    return 0;
 }
