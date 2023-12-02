@@ -1,10 +1,12 @@
-#include <iostream>  
-#include <winsock2.h> 
-#include <windows.h> 
-#include <string> 
-#include <vector>
+#include <iostream> 
+#include <string>
+#define _WINSOCK_DEPRECATED_NO_WARNINGS  
+#include <WinSock2.h>
+#include <Windows.h>
 
-#define SRV_PORT 1234
+#pragma warning(disable: 4996)
+
+#define PORT 666
 #define BUF_SIZE 1024
 
 using namespace std;
@@ -19,97 +21,70 @@ struct Person {
 	int bdate;
 };
 
-const string greeting = "It's Server. Hello!";
-vector<Person> persons;
 
 int main() {
 
 	char buff[1024];
-	WSADATA wsa_data;
-	if (WSAStartup(MAKEWORD(2, 2), &wsa_data) < 0) {
-		cout << "[ERROR] WSA initialization failed: " << WSAGetLastError() << endl;
-		WSACleanup();
-		exit(EXIT_FAILURE);
-	}
-	else {
-		cout << "[INFO] WSA was initialized successfully." << endl;
+	if (WSAStartup(0x0202, (WSADATA*)&buff[0])) {
+		cout << "WSA init error \n" << WSAGetLastError();
+		return -1;
 	}
 
-	SOCKET sListener, sNew;
-	sockaddr_in sin, clntSin;
-
-	sListener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sListener == INVALID_SOCKET) {
-		cout << "[ERROR] Socket initialization failed: " << WSAGetLastError() << endl;
-		WSACleanup();
-		exit(EXIT_FAILURE);
-	}
-	else {
-		cout << "[INFO] Socket was initialized successfully." << endl;
+	SOCKET s = socket(AF_INET, SOCK_DGRAM, 0);
+	if (s == INVALID_SOCKET) {
+		cout << "Socket creating error \n" << WSAGetLastError();
+		return -1;
 	}
 
+	sockaddr_in sAddr;
 
-	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = 0;
-	sin.sin_port = htons(SRV_PORT);
+	sAddr.sin_family = AF_INET;
+	sAddr.sin_addr.s_addr = INADDR_ANY;
+	sAddr.sin_port = htons(PORT);
 
-	if (bind(sListener, (sockaddr*)&sin, sizeof(sin))) {
-		cout << "[ERROR] Socket binding failed: " << WSAGetLastError() << endl;
-		WSACleanup();
-		exit(EXIT_FAILURE);
+
+	
+	if (bind(s, (sockaddr*)&sAddr, sizeof(sAddr))) {
+		cout << "Socket binding error \n" << WSAGetLastError();
+		return -1;
 	}
-	else {
-		cout << "[INFO] Socket was binded successfully." << endl;
-	}
 
-	int len;
+	
+
 	char buf[BUF_SIZE] = { 0 };
-	string msg;
-	listen(sListener, 3);
+	int k = 1;
 	while (true) {
-		len = sizeof(clntSin);
-		sNew = accept(sListener, (sockaddr*)&clntSin, &len);
-		cout << "[INFO] New connection. " << endl;
-		msg = greeting;
-		while (true) {
-			send(sNew, (char*)&msg[0], msg.size(), 0);
-			len = recv(sNew, (char*)buf, BUF_SIZE, 0);
-			if (len == SOCKET_ERROR) {
-				cout << "[ERROR] Data receiving failed: " << WSAGetLastError() << endl;
-				break;
-			}
-
-			Person* y = (Person*)(&buf[0]);
-
-			cout << "CLIENT: ";
-			cout << (*y).surname << " " << (*y).name << " " << (*y).middlename << " " << (*y).address << " " << (*y).gender << " " << (*y).education << " " << (*y).bdate << endl;
-			Person c_person;
-			strcpy_s(c_person.surname, (*y).surname);
-			strcpy_s(c_person.name, (*y).name);
-			strcpy_s(c_person.middlename, (*y).middlename);
-			strcpy_s(c_person.address, (*y).address);
-			strcpy_s(c_person.gender, (*y).gender);
-			strcpy_s(c_person.education, (*y).education);
-			c_person.bdate = (*y).bdate;
-
-			persons.push_back(c_person);
+		sockaddr_in from;
+		int len = sizeof(from);
+		int bsz = recvfrom(s, &buf[0], BUF_SIZE - 1, 0, (sockaddr*)&from, &len);
+		if (bsz == SOCKET_ERROR) {
+			cout << "Message receiving error \n" << WSAGetLastError();
+			return -1;
 		}
 
-		cout << "[INFO] Client disconnected." << endl;
-		closesocket(sNew);
+		HOSTENT* hst;
+		hst = gethostbyaddr((char*)&from.sin_addr, 4, AF_INET);
+		cout << "New Datagram: \n" << ((hst) ? hst->h_name : "Unknown host") << endl
+			<< inet_ntoa(from.sin_addr) << endl << ntohs(from.sin_port) << endl;
 
+		Person* y = (Person*)(&buf[0]);
 
-		cout << "People with higher education: " << endl;
-		for (const Person person : persons) {
-			
-			if ((string)person.education == "higher") cout << person.surname << " " << person.name << " " << person.middlename << " " << person.address << " " << person.gender << " " << person.education << " " << person.bdate << endl;
-		}
+		cout << "CLIENT: ";
+		cout << (*y).surname << " " << (*y).name << " " << (*y).middlename << " " << (*y).address << " " << (*y).gender << " " << (*y).education << " " << (*y).bdate << endl;
+		Person c_person;
+		strcpy_s(c_person.surname, (*y).surname);
+		strcpy_s(c_person.name, (*y).name);
+		strcpy_s(c_person.middlename, (*y).middlename);
+		strcpy_s(c_person.address, (*y).address);
+		strcpy_s(c_person.gender, (*y).gender);
+		strcpy_s(c_person.education, (*y).education);
+		c_person.bdate = (*y).bdate;
+		
+		cout << "Datagram: " << c_person.surname << " " << c_person.name << " " << c_person.middlename << " " << c_person.address << " " << c_person.gender << " " << c_person.education << " " << c_person.bdate << endl;
 
-		cout << endl << "Womans: " << endl;
-		for (const Person person : persons) {
-			if ((string)person.gender == "woman") cout << person.surname << " " << person.name << " " << person.middlename << " " << person.address << " " << person.gender << " " << person.education << " " << person.bdate << endl;
-		}
-
+		string msg = "Datagramm " + to_string(k) + " is received.";
+		k++;
+		sendto(s, (char*)&msg[0], msg.size(), 0, (sockaddr*)&from, sizeof(from));
 	}
 	return 0;
 }
