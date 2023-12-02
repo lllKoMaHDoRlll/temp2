@@ -1,126 +1,108 @@
 #include <iostream> 
 #include <string>
+#define _WINSOCK_DEPRECATED_NO_WARNINGS  
 #include <WinSock2.h>
 #include <Windows.h>
-#include <WS2tcpip.h>
 
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
 #pragma warning(disable: 4996)
 
-#define SRV_HOST "localhost"
-#define SRV_PORT 1234
-#define CLNT_PORT 1235
+#define PORT 666
+#define SRV_ADDR "127.0.0.1"
 #define BUF_SIZE 1024
 
 using namespace std;
 
 struct Person {
-    char surname[20];
-    char name[20];
-    char middlename[20];
-    char address[30];
-    char gender[10];
-    char education[20];
-    int bdate;
+	char surname[20];
+	char name[20];
+	char middlename[20];
+	char address[30];
+	char gender[10];
+	char education[20];
+	int bdate;
 };
 
 int main() {
-    
-    char buff[1024];
-    WSADATA wsa_data;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa_data) < 0) {
-        cout << "[ERROR] WSA initialization failed: " << WSAGetLastError() << endl;
-        WSACleanup();
-        exit(EXIT_FAILURE);
-    }
-    else {
-        cout << "[INFO] WSA was initialized successfully." << endl;
-    }
+	char buff[1024];
+	if (WSAStartup(0x0202, (WSADATA*)&buff[0])) {
+		cout << "WSA Init Error \n" << WSAGetLastError();
+		return -1;
+	}
 
-    SOCKET s;
-    s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (s == INVALID_SOCKET) {
-        cout << "[ERROR] Socket initialization failed: " << WSAGetLastError() << endl;
-        WSACleanup();
-        exit(EXIT_FAILURE);
-    }
-    else {
-        cout << "[INFO] Socket was initialized successfully." << endl;
-    }
+	SOCKET s = socket(AF_INET, SOCK_DGRAM, 0);
+	if (s == INVALID_SOCKET) {
+		cout << "Socket creating error \n" << WSAGetLastError();
+		return -1;
+	}
 
-    sockaddr_in clntSin, srvSin;
 
-    clntSin.sin_family = AF_INET;
-    clntSin.sin_addr.s_addr = 0;
-    clntSin.sin_port = htons(CLNT_PORT);
+	HOSTENT* hst;
+	sockaddr_in srvAddr;
+	srvAddr.sin_family = AF_INET;
+	srvAddr.sin_port = htons(PORT);
 
-    if (bind(s, (sockaddr*)&clntSin, sizeof(clntSin))) {
-        cout << "[ERROR] Socket binding failed: " << WSAGetLastError() << endl;
-        WSACleanup();
-        exit(EXIT_FAILURE);
-    }
-    else {
-        cout << "[INFO] Socket was binded successfully." << endl;
-    }
+	if (inet_addr(SRV_ADDR)) {
+		srvAddr.sin_addr.s_addr = inet_addr(SRV_ADDR);
+	}
+	else {
+		if (hst = gethostbyname(SRV_ADDR)) {
+			srvAddr.sin_addr.s_addr = ((unsigned long**)hst->h_addr_list)[0][0];
+		}
+		else {
+			cout << "Unknown Host: " << WSAGetLastError() << "\n";
+			closesocket(s);
+			WSACleanup();
+			return -1;
+		}
+	}
 
-    hostent* hp;
-    srvSin.sin_family = AF_INET;
-    srvSin.sin_port = htons(SRV_PORT);
-    hp = gethostbyname(SRV_HOST);
-    ((unsigned long*)&srvSin.sin_addr)[0] = ((unsigned long**)hp->h_addr_list)[0][0];
+	while (true) {
 
-    connect(s, (sockaddr*)&srvSin, sizeof(srvSin));
+		string surname, name, middlename, address, gender, education;
+		int bdate;
 
-    int len = 0;
-    char buf[BUF_SIZE] = { 0 };
-    do {
-        len = recv(s, (char*)&buf, BUF_SIZE, 0);
-        if (len == SOCKET_ERROR) {
-            cout << "[ERROR] Receiving data failed: " << WSAGetLastError() << endl;
-            WSACleanup();
-            exit(EXIT_FAILURE);
-        }
-        else {
-            cout << "[INFO] Data was received." << endl;
-        }
+		Person person;
 
-        cout << "SERVER MSG: " << buf << endl;
+		cout << "Enter surname: ";
+		cin >> surname;
+		strcpy(person.surname, surname.c_str());
+		cout << "Enter name: ";
+		cin >> name;
+		strcpy(person.name, name.c_str());
+		cout << "Enter middlename: ";
+		cin >> middlename;
+		strcpy(person.middlename, middlename.c_str());
+		cout << "Enter address: ";
+		cin >> address;
+		strcpy(person.address, address.c_str());
+		cout << "Enter gender (man | woman): ";
+		cin >> gender;
+		strcpy(person.gender, gender.c_str());
+		cout << "Enter education (higher | secondary | primary): ";
+		cin >> education;
+		strcpy(person.education, education.c_str());
+		cout << "Enter birthday date: ";
+		cin >> bdate;
+		person.bdate = bdate;
 
-        string surname, name, middlename, address, gender, education;
-        int bdate;
+		char* msg = (char*)&person;
 
-        Person person;
-        
-        cout << "Enter surname: ";
-        cin >> surname;
-        strcpy(person.surname, surname.c_str());
-        cout << "Enter name: ";
-        cin >> name;
-        strcpy(person.name, name.c_str());
-        cout << "Enter middlename: ";
-        cin >> middlename;
-        strcpy(person.middlename, middlename.c_str());
-        cout << "Enter address: ";
-        cin >> address;
-        strcpy(person.address, address.c_str());
-        cout << "Enter gender (man | woman): ";
-        cin >> gender;
-        strcpy(person.gender, gender.c_str());
-        cout << "Enter education (higher | secondary | primary): ";
-        cin >> education;
-        strcpy(person.education, education.c_str());
-        cout << "Enter birthday date: ";
-        cin >> bdate;
-        person.bdate = bdate;
+		sendto(s, (char*)&msg[0], sizeof(person), 0, (sockaddr*)&srvAddr, sizeof(srvAddr));
 
-        
-        char* msg = (char*)&person;
-        cout << sizeof(person) << " " << sizeof(Person) << endl;
-        send(s, (char*)&msg[0], sizeof(Person), 0);
-
-    } while (true);
-
-    cout << "Conversation is over" << endl;
-    closesocket(s);
-    return 0;
+		sockaddr_in ansAddr;
+		char buf[BUF_SIZE] = { 0 };
+		int len = sizeof(ansAddr);
+		int bsz = recvfrom(s, buf, sizeof(buf), 0, (sockaddr*)&ansAddr, &len);
+		if (bsz == SOCKET_ERROR) {
+			cout << "Message receiving error \n" << WSAGetLastError() << "\n";
+			closesocket(s);
+			WSACleanup();
+			return -1;
+		}
+		buf[bsz] = '\0';
+		cout << "Answer: " << buf << endl;
+	}
+	closesocket(s);
+	WSACleanup();
+	return 0;
 }
