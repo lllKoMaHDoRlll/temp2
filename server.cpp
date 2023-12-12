@@ -1,90 +1,126 @@
-#include <iostream> 
+#include <iostream>
+#include <sstream>
 #include <string>
-#define _WINSOCK_DEPRECATED_NO_WARNINGS  
+
+// Для корректной работы freeaddrinfo в MinGW
+#define _WIN32_WINNT 0x501
 #include <WinSock2.h>
-#include <Windows.h>
+#include <WS2tcpip.h>
 
-#pragma warning(disable: 4996)
-
-#define PORT 666
 #define BUF_SIZE 1024
 
+using std::cerr;
 using namespace std;
 
-struct Person {
-	char surname[20];
-	char name[20];
-	char middlename[20];
-	char address[30];
-	char gender[10];
-	char education[20];
-	int bdate;
-};
-
-
 int main() {
+	// Оформление окна
+	cout << "\t HTTP-server\n";
+	for (int i = 0; i < 30; i++)
+		cout << "-";
 
-	char buff[1024];
-	if (WSAStartup(0x0202, (WSADATA*)&buff[0])) {
-		cout << "WSA init error \n" << WSAGetLastError();
+
+	WSADATA ws;
+	if (WSAStartup(MAKEWORD(2, 2), &ws)) {
+		cerr << "Error WSAStartup! \n" << WSAGetLastError();
 		return -1;
 	}
 
-	SOCKET s = socket(AF_INET, SOCK_DGRAM, 0);
-	if (s == INVALID_SOCKET) {
-		cout << "Socket creating error \n" << WSAGetLastError();
+	// IP-адрес слушающего сокета сервера
+	addrinfo* addr = NULL;
+
+	// Шаблон для инициализации структуры адреса
+	addrinfo hints;
+	ZeroMemory(&hints, sizeof(hints));
+
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	hints.ai_flags = AI_PASSIVE;
+
+	// Инициализируем структуру, хранящую адрес сокета
+	// Наш HTTP-сервер будет висеть на 8000-м порту localhost
+	if (getaddrinfo("127.0.0.1", "8000", &hints, &addr)) {
+		cerr << "Error getaddrinfo! \n" << WSAGetLastError();
+		WSACleanup();
 		return -1;
 	}
 
-	sockaddr_in sAddr;
-
-	sAddr.sin_family = AF_INET;
-	sAddr.sin_addr.s_addr = INADDR_ANY;
-	sAddr.sin_port = htons(PORT);
-
-
-	
-	if (bind(s, (sockaddr*)&sAddr, sizeof(sAddr))) {
-		cout << "Socket binding error \n" << WSAGetLastError();
+	// Создаем слушающий сокет
+	SOCKET listener = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+	if (listener == INVALID_SOCKET) {
+		cerr << "Error socket! \n" << WSAGetLastError();
+		WSACleanup();
 		return -1;
 	}
 
-	
-
-	char buf[BUF_SIZE] = { 0 };
-	int k = 1;
+	// Привязываем слушающий сокет к IP-адресу сервера
+	if (bind(listener, addr->ai_addr, addr->ai_addrlen) == SOCKET_ERROR) {
+		cerr << "Error bind! \n" << WSAGetLastError();
+		closesocket(listener);
+		freeaddrinfo(addr);
+		WSACleanup();
+		return -1;
+	}
+	// Инициализируем слушающий сокет
+	if (listen(listener, SOMAXCONN) == SOCKET_ERROR) {
+		cerr << "Error bind! \n" << WSAGetLastError();
+		closesocket(listener);
+		freeaddrinfo(addr);
+		WSACleanup();
+		return -1;
+	}
+	char buf[BUF_SIZE] = {};
+	SOCKET sClient;
+	// Цикл приема сообщений
 	while (true) {
-		sockaddr_in from;
-		int len = sizeof(from);
-		int bsz = recvfrom(s, &buf[0], BUF_SIZE - 1, 0, (sockaddr*)&from, &len);
-		if (bsz == SOCKET_ERROR) {
-			cout << "Message receiving error \n" << WSAGetLastError();
+		// Принимаем входящее соединение 
+		if ((sClient = accept(listener, NULL, NULL)) == INVALID_SOCKET) {
+			cerr << "Error accept! \n" << WSAGetLastError();
+			closesocket(listener);
+			freeaddrinfo(addr);
+			WSACleanup();
 			return -1;
 		}
+		int len = recv(sClient, (char*)buf, BUF_SIZE, 0);
+		if (len == SOCKET_ERROR) {
+			cerr << "Error recv! \n" << WSAGetLastError();
+			closesocket(sClient);
+		}
+		if (len == 0) {
+			cout << "Connection was closed by client" << endl;
+		}
+		else {
+			cout << "New client connected!\n";
+			// Ставим метку конца строки в буфере запроса
+			buf[len] = '\0';
 
-		HOSTENT* hst;
-		hst = gethostbyaddr((char*)&from.sin_addr, 4, AF_INET);
-		cout << "New Datagram: \n" << ((hst) ? hst->h_name : "Unknown host") << endl
-			<< inet_ntoa(from.sin_addr) << endl << ntohs(from.sin_port) << endl;
+			// Формируем ответ в формате HTML
+			std::stringstream responseBody, response;
+			// Тело ответа
+			responseBody << "<title>Test C++ HTTP Server</title>\n"
+				<< "<h1>Test page</h1>\n"
+				<< "<p>This is body of the test page...</p>\n"
+				<< "<h2>Request headers</h2>\n"
+				<< "<pre>" << buf << "</pre>\n"
+				<< "<em><small>Test C++ Http Server</small></em>\n";
 
-		Person* y = (Person*)(&buf[0]);
-
-		cout << "CLIENT: ";
-		cout << (*y).surname << " " << (*y).name << " " << (*y).middlename << " " << (*y).address << " " << (*y).gender << " " << (*y).education << " " << (*y).bdate << endl;
-		Person c_person;
-		strcpy_s(c_person.surname, (*y).surname);
-		strcpy_s(c_person.name, (*y).name);
-		strcpy_s(c_person.middlename, (*y).middlename);
-		strcpy_s(c_person.address, (*y).address);
-		strcpy_s(c_person.gender, (*y).gender);
-		strcpy_s(c_person.education, (*y).education);
-		c_person.bdate = (*y).bdate;
-		
-		cout << "Datagram: " << c_person.surname << " " << c_person.name << " " << c_person.middlename << " " << c_person.address << " " << c_person.gender << " " << c_person.education << " " << c_person.bdate << endl;
-
-		string msg = "Datagramm " + to_string(k) + " is received.";
-		k++;
-		sendto(s, (char*)&msg[0], msg.size(), 0, (sockaddr*)&from, sizeof(from));
+			// Весь ответ
+			response << "HTTP/1.1 200 OK\r\n"
+				<< "Version: HTTP/1.1\r\n"
+				<< "Content-Type: text/html; charset=utf-8\r\n"
+				<< "Content-Length: " << responseBody.str().length()
+				<< "\r\n\r\n" << responseBody.str();
+			// Отправляем ответ клиенту
+			if (send(sClient, response.str().c_str(),
+				response.str().length(), 0) == SOCKET_ERROR) {
+				cerr << "Error send! \n" << WSAGetLastError();
+			}
+			// Закрываем соединение
+			closesocket(sClient);
+		}
 	}
+	closesocket(listener);
+	freeaddrinfo(addr);
+	WSACleanup();
 	return 0;
 }
